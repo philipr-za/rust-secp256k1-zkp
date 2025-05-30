@@ -23,7 +23,7 @@ features = [ "recovery", "lowmemory" ]
 cc = "1.0.28"
 
 [dependencies]
-secp256k1-sys = { git = "https://github.com/jlest01/rust-secp256k1.git", package = "secp256k1-sys", rev = "b5558c5912b04018ec5339d88691009c754a2491"}
+secp256k1-sys = { git = "https://github.com/rust-bitcoin/rust-secp256k1.git", package = "secp256k1-sys", rev = "4d36fefdddb118425bb9bcf611bb6e4dff306cfc"}
 
 [features]
 default = ["std"]
