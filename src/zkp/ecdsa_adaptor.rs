@@ -258,7 +258,7 @@ impl EcdsaAdaptorSignature {
             return Err(Error::CannotRecoverAdaptorSecret);
         }
 
-        Ok(SecretKey::from_slice(&data)?)
+        Ok(SecretKey::from_secret_bytes(data)?)
     }
 
     /// Verifies that the adaptor secret can be extracted from the adaptor signature and the completed ECDSA signature.
