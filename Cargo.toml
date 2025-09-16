@@ -33,7 +33,7 @@ rand = ["actual-rand", "secp256k1/rand"]
 [dependencies]
 actual-serde = { package = "serde", version = "=1.0.210", default-features = false, optional = true }
 actual-rand = { package = "rand", version = "0.9", default-features = false, optional = true }
-secp256k1 = { git = "https://github.com/rust-bitcoin/rust-secp256k1.git", features = ["rand", "alloc"], rev = "7d8d547b3613f84103feeaa70100ea9c23ffa483"}
+secp256k1 = { git = "https://github.com/philipr-za/rust-secp256k1.git", branch = "philip-explicit-sys-dep", features = ["rand", "alloc"]}
 secp256k1-zkp-sys = { git = "https://github.com/philipr-za/rust-secp256k1-zkp.git", branch = "philip-bump-secp256k1-versions", default-features = false }
 internals = { package = "bitcoin-private", version = "0.1.0" }
 
