@@ -40,7 +40,7 @@ RUN apt-get update && apt-get install --no-install-recommends -y \
         apt-get clean && rm -rf /var/lib/apt/lists/*
 
 # Build and install gcc snapshot
-ARG GCC_SNAPSHOT_MAJOR=14
+ARG GCC_SNAPSHOT_MAJOR=15
 RUN apt-get update && apt-get install --no-install-recommends -y wget libgmp-dev libmpfr-dev libmpc-dev flex && \
     mkdir gcc && cd gcc && \
     wget --progress=dot:giga --https-only --recursive --accept '*.tar.xz' --level 1 --no-directories "https://gcc.gnu.org/pub/gcc/snapshots/LATEST-${GCC_SNAPSHOT_MAJOR}" && \
@@ -66,6 +66,9 @@ RUN \
     wget -qO- https://apt.llvm.org/llvm-snapshot.gpg.key | tee /etc/apt/trusted.gpg.d/apt.llvm.org.asc && \
     # Add repository for this Debian release
     . /etc/os-release && echo "deb http://apt.llvm.org/${VERSION_CODENAME} llvm-toolchain-${VERSION_CODENAME} main" >> /etc/apt/sources.list && \
+    # Temporarily work around Sequoia PGP policy deadline for legacy repositories.
+    # See https://github.com/llvm/llvm-project/issues/153385.
+    sed -i 's/\(sha1\.second_preimage_resistance =\).*/\1 9999-01-01/' /usr/share/apt/default-sequoia.config && \
     apt-get update && \
     # Determine the version number of the LLVM development branch
     LLVM_VERSION=$(apt-cache search --names-only '^clang-[0-9]+$' | sort -V | tail -1 | cut -f1 -d" " | cut -f2 -d"-" ) && \
