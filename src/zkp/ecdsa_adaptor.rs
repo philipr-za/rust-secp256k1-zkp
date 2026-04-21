@@ -258,7 +258,7 @@ impl EcdsaAdaptorSignature {
             return Err(Error::CannotRecoverAdaptorSecret);
         }
 
-        Ok(SecretKey::from_slice(&data)?)
+        Ok(SecretKey::from_secret_bytes(data)?)
     }
 
     /// Verifies that the adaptor secret can be extracted from the adaptor signature and the completed ECDSA signature.
@@ -300,8 +300,8 @@ mod tests {
         encrypt: fn(&Message, &SecretKey, &PublicKey, &mut ThreadRng) -> EcdsaAdaptorSignature,
     ) {
         let mut rng = thread_rng();
-        let (seckey, pubkey) = SECP256K1.generate_keypair(&mut rng);
-        let (adaptor_secret, adaptor) = SECP256K1.generate_keypair(&mut rng);
+        let (seckey, pubkey) = secp256k1::generate_keypair(&mut rng);
+        let (adaptor_secret, adaptor) = secp256k1::generate_keypair(&mut rng);
         let msg = Message::from_digest_slice(&[2u8; 32]).unwrap();
         let adaptor_sig = encrypt(&msg, &seckey, &adaptor, &mut rng);
 
@@ -315,7 +315,7 @@ mod tests {
             .decrypt(&adaptor_secret)
             .expect("to be able to decrypt using the correct secret");
         SECP256K1
-            .verify_ecdsa(&msg, &sig, &pubkey)
+            .verify_ecdsa(msg, &sig, &pubkey)
             .expect("signature to be valid");
         let recovered = adaptor_sig
             .recover(SECP256K1, &sig, &adaptor)
@@ -487,7 +487,7 @@ mod tests {
     fn msg_from_str(input: &str) -> Message {
         let mut buf = [0u8; 32];
         from_hex(input, &mut buf).unwrap();
-        Message::from_digest_slice(&buf).unwrap()
+        Message::from_digest(buf)
     }
 
     fn compact_sig_from_str(input: &str) -> Signature {
