@@ -14,79 +14,82 @@
 //! **Important**: `serde` encoding is **not** the same as consensus
 //! encoding!
 //!
-//! Where possible, the bindings use the Rust type system to ensure that
-//! API usage errors are impossible. For example, the library uses context
-//! objects that contain precomputation tables which are created on object
-//! construction. Since this is a slow operation (10+ milliseconds, vs ~50
-//! microseconds for typical crypto operations, on a 2.70 Ghz i7-6820HQ)
-//! the tables are optional, giving a performance boost for users who only
-//! care about signing, only care about verification, or only care about
-//! parsing. In the upstream library, if you attempt to sign a message using
-//! a context that does not support this, it will trigger an assertion
-//! failure and terminate the program. In `rust-secp256k1`, this is caught
-//! at compile-time; in fact, it is impossible to compile code that will
-//! trigger any assertion failures in the upstream library.
+//! The library handles the underlying `libsecp256k1` context object for
+//! you, with signing, verification and key generation as plain functions
+//! (or methods on the key and signature types). These use a
+//! lazily-initialized global context internally. That context holds
+//! precomputation tables which are built at most once per program run, since
+//! building them is a slow operation (10+ milliseconds, vs ~50 microseconds
+//! for typical crypto operations, on a 2.70 Ghz i7-6820HQ).
 //!
 //! ```rust
-//! # #[cfg(all(feature = "rand", feature = "hashes", feature = "std"))] {
+//! # #[cfg(all(feature = "rand", feature = "std"))] {
 //! use secp256k1::rand;
-//! use secp256k1::{Secp256k1, Message};
-//! use secp256k1::hashes::{sha256, Hash};
+//! use secp256k1::{ecdsa, Message};
 //!
-//! let secp = Secp256k1::new();
-//! let (secret_key, public_key) = secp.generate_keypair(&mut rand::rng());
-//! let digest = sha256::Hash::hash("Hello World!".as_bytes());
-//! let message = Message::from_digest(digest.to_byte_array());
+//! // Our message to sign. We explicitly obtain a hash and convert it to a
+//! // `Message`. In a real application, we would produce a signature hash
+//! // type, e.g. `bitcoin::LegacySigHash`, which is convertible to `Message`
+//! // and can be passed directly to `sign_ecdsa`.
+//! const HELLO_WORLD_SHA2: [u8; 32] = [
+//!     0x31, 0x5f, 0x5b, 0xdb, 0x76, 0xd0, 0x78, 0xc4, 0x3b, 0x8a, 0xc0, 0x06, 0x4e, 0x4a, 0x01, 0x64,
+//!     0x61, 0x2b, 0x1f, 0xce, 0x77, 0xc8, 0x69, 0x34, 0x5b, 0xfc, 0x94, 0xc7, 0x58, 0x94, 0xed, 0xd3,
+//! ];
 //!
-//! let sig = secp.sign_ecdsa(message, &secret_key);
-//! assert!(secp.verify_ecdsa(message, &sig, &public_key).is_ok());
+//! let (secret_key, public_key) = secp256k1::generate_keypair(&mut rand::rng());
+//! let message = Message::from_digest(HELLO_WORLD_SHA2);
+//!
+//! let sig = ecdsa::sign(message, &secret_key);
+//! assert!(ecdsa::verify(&sig, message, &public_key).is_ok());
 //! # }
 //! ```
 //!
-//! If the "global-context" feature is enabled you have access to an alternate API.
+//! The same operations are also available as methods on the key and signature
+//! types.
 //!
 //! ```rust
-//! # #[cfg(all(feature = "global-context", feature = "hashes", feature = "rand", feature = "std"))] {
-//! use secp256k1::{rand, generate_keypair, Message};
-//! use secp256k1::hashes::{sha256, Hash};
+//! # #[cfg(all(feature = "rand", feature = "std"))] {
+//! use secp256k1::{rand, Message};
 //!
-//! let (secret_key, public_key) = generate_keypair(&mut rand::rng());
-//! let digest = sha256::Hash::hash("Hello World!".as_bytes());
-//! let message = Message::from_digest(digest.to_byte_array());
+//! // See previous example regarding this constant.
+//! const HELLO_WORLD_SHA2: [u8; 32] = [
+//!     0x31, 0x5f, 0x5b, 0xdb, 0x76, 0xd0, 0x78, 0xc4, 0x3b, 0x8a, 0xc0, 0x06, 0x4e, 0x4a, 0x01, 0x64,
+//!     0x61, 0x2b, 0x1f, 0xce, 0x77, 0xc8, 0x69, 0x34, 0x5b, 0xfc, 0x94, 0xc7, 0x58, 0x94, 0xed, 0xd3,
+//! ];
+//!
+//! let (secret_key, public_key) = secp256k1::generate_keypair(&mut rand::rng());
+//! let message = Message::from_digest(HELLO_WORLD_SHA2);
 //!
 //! let sig = secret_key.sign_ecdsa(message);
 //! assert!(sig.verify(message, &public_key).is_ok());
 //! # }
 //! ```
 //!
-//! The above code requires `rust-secp256k1` to be compiled with the `rand`, `hashes`, and `std`
-//! feature enabled, to get access to [`generate_keypair`](struct.Secp256k1.html#method.generate_keypair)
+//! The above code requires `rust-secp256k1` to be compiled with the `rand` and `std` features
+//! enabled, to get access to [`generate_keypair`].
 //! Alternately, keys and messages can be parsed from slices, like
 //!
 //! ```rust
 //! # #[cfg(feature = "alloc")] {
-//! use secp256k1::{Secp256k1, Message, SecretKey, PublicKey};
+//! use secp256k1::{ecdsa, Message, SecretKey, PublicKey};
 //! # fn compute_hash(_: &[u8]) -> [u8; 32] { [0xab; 32] }
 //!
-//! let secp = Secp256k1::new();
-//! let secret_key = SecretKey::from_slice(&[0xcd; 32]).expect("32 bytes, within curve order");
-//! let public_key = PublicKey::from_secret_key(&secp, &secret_key);
+//! let secret_key = SecretKey::from_secret_bytes([0xcd; 32]).expect("32 bytes, within curve order");
+//! let public_key = PublicKey::from_secret_key(&secret_key);
 //! // If the supplied byte slice was *not* the output of a cryptographic hash function this would
 //! // be cryptographically broken. It has been trivially used in the past to execute attacks.
 //! let message = Message::from_digest(compute_hash(b"CSW is not Satoshi"));
 //!
-//! let sig = secp.sign_ecdsa(message, &secret_key);
-//! assert!(secp.verify_ecdsa(message, &sig, &public_key).is_ok());
+//! let sig = ecdsa::sign(message, &secret_key);
+//! assert!(ecdsa::verify(&sig, message, &public_key).is_ok());
 //! # }
 //! ```
 //!
-//! Users who only want to verify signatures can use a cheaper context, like so:
+//! Users who only want to verify signatures can do so:
 //!
 //! ```rust
 //! # #[cfg(feature = "alloc")] {
-//! use secp256k1::{Secp256k1, Message, ecdsa, PublicKey};
-//!
-//! let secp = Secp256k1::verification_only();
+//! use secp256k1::{ecdsa, Message, PublicKey};
 //!
 //! let public_key = PublicKey::from_slice(&[
 //!     0x02,
@@ -115,12 +118,9 @@
 //! ]).expect("compact signatures are 64 bytes; DER signatures are 68-72 bytes");
 //!
 //! # #[cfg(not(secp256k1_fuzz))]
-//! assert!(secp.verify_ecdsa(message, &sig, &public_key).is_ok());
+//! assert!(ecdsa::verify(&sig, message, &public_key).is_ok());
 //! # }
 //! ```
-//!
-//! Observe that the same code using, say [`signing_only`](struct.Secp256k1.html#method.signing_only)
-//! to generate a context would simply not compile.
 //!
 //! ## Crate features/optional dependencies
 //!
@@ -509,7 +509,6 @@ fn from_hex(hex: &str, target: &mut [u8]) -> Result<usize, ()> {
 #[cfg(test)]
 mod test_util {
     pub struct KeyPairStream {
-        ctx: secp256k1::Secp256k1<secp256k1::All>,
         sk: secp256k1::SecretKey,
         pk: secp256k1::PublicKey,
     }
@@ -518,10 +517,9 @@ mod test_util {
         /// Generates a new iterator which produces an indefinite stream of distinct
         /// keypairs for use with testing.
         pub fn new() -> Self {
-            let ctx = secp256k1::Secp256k1::new();
-            let sk = secp256k1::SecretKey::from_byte_array([100; 32]).unwrap();
-            let pk = secp256k1::PublicKey::from_secret_key(&ctx, &sk);
-            KeyPairStream { sk, pk, ctx }
+            let sk = secp256k1::SecretKey::from_secret_bytes([100; 32]).unwrap();
+            let pk = secp256k1::PublicKey::from_secret_key(&sk);
+            KeyPairStream { sk, pk }
         }
     }
 
@@ -533,10 +531,7 @@ mod test_util {
 
             let ret = (self.sk, self.pk);
             self.sk = self.sk.add_tweak(&offs).expect("will not cancel");
-            self.pk = self
-                .pk
-                .add_exp_tweak(&self.ctx, &offs)
-                .expect("will not cancel");
+            self.pk = self.pk.add_exp_tweak(&offs).expect("will not cancel");
             Some(ret)
         }
     }
